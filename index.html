@@ -1,0 +1,2148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💳 Controle de Gastos - Cartão de Crédito</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --warning: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            --danger: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            --dark: #1a1a2e;
+            --card-bg: #16213e;
+            --text: #e8e8e8;
+            --text-secondary: #a8a8a8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 10px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: var(--primary);
+        }
+
+        h1 {
+            font-size: clamp(1.5em, 5vw, 2.5em);
+            background: var(--primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            word-wrap: break-word;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: clamp(0.9em, 3vw, 1.1em);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: var(--card-bg);
+            padding: 10px;
+            border-radius: 15px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            color: #e8e8e8;
+            font-size: clamp(0.85em, 2.5vw, 1em);
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            overflow-x: hidden;
+        }
+
+        .card-title {
+            font-size: clamp(1.2em, 4vw, 1.5em);
+            margin-bottom: 20px;
+            background: var(--secondary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            word-wrap: break-word;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: clamp(0.85em, 2.5vw, 0.9em);
+        }
+
+        input, select, textarea {
+            padding: 12px 15px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            font-size: clamp(0.9em, 3vw, 1em);
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        select {
+            background: rgba(26, 26, 46, 0.95);
+            cursor: pointer;
+            color: #ffffff;
+        }
+
+        select option {
+            background: #0a0a14;
+            color: #ffffff;
+            padding: 10px;
+            font-weight: 500;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: clamp(0.85em, 2.5vw, 1em);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .btn-small {
+            padding: 8px 12px;
+            font-size: clamp(0.75em, 2vw, 0.9em);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+
+        .stat-card:nth-child(1)::before {
+            background: var(--primary);
+        }
+
+        .stat-card:nth-child(2)::before {
+            background: var(--secondary);
+        }
+
+        .stat-card:nth-child(3)::before {
+            background: var(--success);
+        }
+
+        .stat-card:nth-child(4)::before {
+            background: var(--warning);
+        }
+
+        .stat-card:nth-child(5)::before {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+        }
+
+        .stat-card:nth-child(6)::before {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        }
+
+        .stat-label {
+            font-size: clamp(0.8em, 2.5vw, 0.9em);
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: clamp(1.2em, 4vw, 2em);
+            font-weight: bold;
+            background: var(--primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            word-break: break-word;
+        }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            min-width: 600px;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 20px;
+        }
+
+        thead th {
+            background: rgba(102, 126, 234, 0.2);
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-size: clamp(0.75em, 2vw, 0.9em);
+        }
+
+        tbody tr {
+            background: rgba(255, 255, 255, 0.02);
+            transition: all 0.3s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        tbody td {
+            padding: 12px 8px;
+            border-bottom: 1px solid var(--border);
+            font-size: clamp(0.75em, 2vw, 0.9em);
+            word-break: break-word;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: clamp(0.7em, 2vw, 0.85em);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge-paulo {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .badge-mayara {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .badge-aberta {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
+        .badge-paga {
+            background: rgba(79, 172, 254, 0.2);
+            color: #4facfe;
+        }
+
+        .message {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            animation: slideIn 0.5s ease;
+            font-size: clamp(0.85em, 2.5vw, 1em);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .message.success {
+            background: rgba(79, 172, 254, 0.2);
+            border-left: 4px solid #4facfe;
+            color: #4facfe;
+        }
+
+        .message.error {
+            background: rgba(255, 107, 107, 0.2);
+            border-left: 4px solid #ff6b6b;
+            color: #ff6b6b;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .fatura-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .fatura-filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-input {
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            font-size: clamp(0.75em, 2vw, 0.85em);
+            width: 100%;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 20px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: clamp(1.2em, 4vw, 1.5em);
+            background: var(--primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .btn-close {
+            background: transparent;
+            border: none;
+            font-size: 1.5em;
+            color: var(--text);
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: clamp(1em, 3vw, 1.2em);
+            color: var(--text-secondary);
+        }
+
+        .comprador-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border);
+            gap: 10px;
+        }
+
+        .comprador-item span {
+            font-size: clamp(0.9em, 2.5vw, 1.1em);
+            font-weight: 600;
+            word-break: break-word;
+        }
+
+        .add-comprador-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .add-comprador-form input {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .compradores-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .comprador-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .comprador-checkbox:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: #667eea;
+        }
+
+        .comprador-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .comprador-checkbox label {
+            margin: 0;
+            cursor: pointer;
+            font-size: clamp(0.85em, 2.5vw, 0.95em);
+        }
+
+        .comprador-checkbox.checked {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
+        }
+
+        .valores-divisao {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .valor-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .valor-item label {
+            font-size: clamp(0.85em, 2.5vw, 0.9em);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .error-text {
+            color: #ff6b6b;
+            font-size: clamp(0.8em, 2vw, 0.85em);
+            margin-top: 5px;
+        }
+
+        .success-text {
+            color: #4facfe;
+            font-size: clamp(0.8em, 2vw, 0.85em);
+            margin-top: 5px;
+        }
+
+        .elegant-table {
+            width: 100%;
+            min-width: 600px;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 20px;
+        }
+
+        .elegant-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .elegant-table thead th {
+            padding: 15px 10px;
+            text-align: left;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            font-size: clamp(0.7em, 2vw, 0.85em);
+            letter-spacing: 1px;
+        }
+
+        .elegant-table tbody tr {
+            background: rgba(255, 255, 255, 0.02);
+            transition: all 0.3s ease;
+        }
+
+        .elegant-table tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .elegant-table tbody tr:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .elegant-table tbody td {
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+            font-size: clamp(0.75em, 2vw, 0.95em);
+        }
+
+        .valor-cell {
+            font-weight: 700;
+            font-size: clamp(0.9em, 2.5vw, 1.1em);
+            color: #4facfe;
+        }
+
+        .status-pendente {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            font-weight: 600;
+            font-size: clamp(0.75em, 2vw, 0.85em);
+        }
+
+        .mes-cell {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .total-mes-row {
+            background: rgba(102, 126, 234, 0.15) !important;
+            font-weight: 700;
+        }
+
+        .total-mes-row td {
+            border-top: 2px solid rgba(102, 126, 234, 0.5);
+            padding: 15px 10px !important;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+
+            header {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .card {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .tabs {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .tab-btn {
+                padding: 10px 15px;
+                min-width: 100px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .stat-card {
+                padding: 15px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .action-buttons .btn {
+                width: 100%;
+            }
+
+            table, .elegant-table {
+                font-size: 0.8em;
+            }
+
+            thead th, tbody td {
+                padding: 8px 4px;
+            }
+
+            .fatura-filters {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-content {
+                padding: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .table-wrapper {
+                margin: 0 -15px;
+                padding: 0 15px;
+            }
+
+            .compradores-checkboxes {
+                grid-template-columns: 1fr;
+            }
+
+            .valores-divisao {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💳 Controle de Gastos</h1>
+            <p class="subtitle">Gerencie suas despesas de forma inteligente</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('cadastro')">➕ Nova Compra</button>
+            <button class="tab-btn" onclick="switchTab('faturas')">📊 Faturas</button>
+            <button class="tab-btn" onclick="switchTab('relatorios')">📅 Faturas Futuras</button>
+        </div>
+
+        <div id="messageContainer"></div>
+
+        <!-- TAB: CADASTRO -->
+        <div id="cadastro" class="tab-content active">
+            <div class="card">
+                <h2 class="card-title">➕ Cadastrar Nova Compra</h2>
+                <form id="compraForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>📅 Data da Compra *</label>
+                            <input type="date" id="dataCompra" required>
+                        </div>
+                        <div class="form-group">
+                            <label>💰 Valor Total *</label>
+                            <input type="number" id="valor" step="0.01" placeholder="0.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label>🔢 Parcelas *</label>
+                            <input type="number" id="parcelas" min="1" value="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>👤 Quem vai pagar? *</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="comprador" required onchange="handleCompradorChange()" style="flex: 1;">
+                                    <option value="">Selecione...</option>
+                                </select>
+                                <button type="button" class="btn btn-warning btn-small" onclick="gerenciarCompradores()" title="Gerenciar">
+                                    ⚙️
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="splitContainer" style="display: none;">
+                        <div class="form-group">
+                            <label>💵 Quem vai dividir?</label>
+                            <div id="compradoresCheckboxes" class="compradores-checkboxes"></div>
+                            <button type="button" class="btn btn-warning btn-small" onclick="calcularDivisao()" style="margin-top: 10px; width: 100%;">
+                                🔄 Calcular Divisão
+                            </button>
+                        </div>
+                        
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label>💰 Valores por pessoa</label>
+                            <div id="valoresDivisao" class="valores-divisao"></div>
+                            <div id="splitError" class="error-text" style="display: none;"></div>
+                            <div id="splitSuccess" class="success-text" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>🏪 Estabelecimento *</label>
+                            <input type="text" id="estabelecimento" placeholder="Ex: Amazon..." required>
+                        </div>
+                        <div class="form-group">
+                            <label>🛍️ Produto *</label>
+                            <input type="text" id="produto" placeholder="Ex: Notebook..." required>
+                        </div>
+                        <div class="form-group">
+                            <label>📁 Categoria *</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="categoria" required style="flex: 1;">
+                                    <option value="">Selecione...</option>
+                                </select>
+                                <button type="button" class="btn btn-warning btn-small" onclick="gerenciarCategorias()" title="Gerenciar">
+                                    ⚙️
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>💳 Cartão</label>
+                            <input type="text" id="cartao" value="Nubank" readonly>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>📝 Observação</label>
+                        <textarea id="observacao" placeholder="Informações adicionais..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+                        ✅ CADASTRAR COMPRA
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- TAB: FATURAS -->
+        <div id="faturas" class="tab-content">
+            <div class="fatura-selector">
+                <label style="font-weight: 600;">📅 Filtros:</label>
+                <div class="fatura-filters">
+                    <div class="form-group">
+                        <label>Status:</label>
+                        <select id="statusFilter" onchange="generateFaturaOptions()">
+                            <option value="todas">Todas</option>
+                            <option value="abertas">Abertas</option>
+                            <option value="pagas">Pagas/Fechadas</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Fatura:</label>
+                        <select id="faturaSelect" onchange="loadFatura()">
+                            <option value="">Carregando...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-grid" id="faturaStats">
+                <!-- Cards serão gerados dinamicamente -->
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h2 class="card-title" style="margin-bottom: 0;">📊 Detalhes</h2>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-primary btn-small" onclick="visualizarFaturaPDF()" id="btnVisualizarFatura" disabled>
+                            👁️ PDF
+                        </button>
+                        <button class="btn btn-success btn-small" onclick="baixarFaturaPDF()" id="btnBaixarFatura" disabled>
+                            📥 Baixar
+                        </button>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table id="faturaTable">
+                        <thead>
+                            <tr>
+                                <th>
+                                    Data
+                                    <input type="text" class="filter-input" placeholder="Filtrar..." onkeyup="filterFaturaTable(0, this.value)">
+                                </th>
+                                <th>
+                                    Estabelecimento
+                                    <input type="text" class="filter-input" placeholder="Filtrar..." onkeyup="filterFaturaTable(1, this.value)">
+                                </th>
+                                <th>
+                                    Produto
+                                    <input type="text" class="filter-input" placeholder="Filtrar..." onkeyup="filterFaturaTable(2, this.value)">
+                                </th>
+                                <th>
+                                    Categoria
+                                    <input type="text" class="filter-input" placeholder="Filtrar..." onkeyup="filterFaturaTable(3, this.value)">
+                                </th>
+                                <th>
+    				   Parcela
+    				   <input type="text" class="filter-input" placeholder="Filtrar..." onkeyup="filterFaturaTable(4, this.value)">
+				</th>
+                                <th>
+                                    Comprador
+                                    <input type="text" class="filter-input" placeholder="Filtrar..." onkeyup="filterFaturaTable(5, this.value)">
+                                </th>
+                                <th>Valor</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="faturaTableBody">
+                            <tr><td colspan="8" class="loading">Selecione uma fatura</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: FATURAS FUTURAS -->
+        <div id="relatorios" class="tab-content">
+            <div class="card">
+                <h2 class="card-title">📅 Faturas Futuras</h2>
+                
+                <div class="card" style="background: rgba(255, 107, 107, 0.1); border: 2px solid rgba(255, 107, 107, 0.3);">
+                    <h3 class="card-title" style="color: #ff6b6b;">💳 Débitos Pendentes</h3>
+                    <p style="color: #e8e8e8; margin-bottom: 20px; font-size: clamp(0.85em, 2.5vw, 1em);">
+                        Do mais recente ao mais antigo
+                    </p>
+                    <div class="table-wrapper">
+                        <table class="elegant-table">
+                            <thead>
+                                <tr>
+                                    <th>Comprador</th>
+                                    <th>Fatura</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaDebitos">
+                                <tr><td colspan="4" class="loading">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Categorias -->
+    <div id="categoriasModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">⚙️ Categorias</h2>
+                <button class="btn-close" onclick="fecharModalCategorias()">✕</button>
+            </div>
+            <div id="listaCategorias"></div>
+            <div class="add-comprador-form">
+                <input type="text" id="novaCategoriaInput" placeholder="Nova categoria..." 
+                       onkeypress="if(event.key==='Enter') adicionarCategoriaModal()">
+                <button class="btn btn-success btn-small" onclick="adicionarCategoriaModal()">
+                    ➕
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Compradores -->
+    <div id="compradoresModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">⚙️ Compradores</h2>
+                <button class="btn-close" onclick="fecharModalCompradores()">✕</button>
+            </div>
+            <div id="listaCompradores"></div>
+            <div class="add-comprador-form">
+                <input type="text" id="novoCompradorInput" placeholder="Novo comprador..." 
+                       onkeypress="if(event.key==='Enter') adicionarCompradorModal()">
+                <button class="btn btn-success btn-small" onclick="adicionarCompradorModal()">
+                    ➕
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Edição -->
+    <div id="editModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">✏️ Editar</h2>
+                <button class="btn-close" onclick="fecharModalEdicao()">✕</button>
+            </div>
+            <form id="editForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>📅 Data</label>
+                        <input type="date" id="editDataParcela" required>
+                    </div>
+                    <div class="form-group">
+                        <label>💰 Valor</label>
+                        <input type="number" id="editValor" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>🏪 Estabelecimento</label>
+                        <input type="text" id="editEstabelecimento" required>
+                    </div>
+                    <div class="form-group">
+                        <label>🛍️ Produto</label>
+                        <input type="text" id="editProduto" required>
+                    </div>
+                    <div class="form-group">
+                        <label>📁 Categoria</label>
+                        <select id="editCategoria" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>👤 Comprador</label>
+                        <select id="editComprador" required></select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>📝 Observação</label>
+                    <textarea id="editObservacao"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+                    ✅ SALVAR
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://egatysvguaxvohblgqbu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnYXR5c3ZndWF4dm9oYmxncWJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDYzNzAsImV4cCI6MjA3ODQ4MjM3MH0.SEQ4XyzMCAHBZVHBn_qOWf5fqtYAqkeWBwHz92Ngs90';
+        
+        let supabase;
+        let compradores = ['Paulo', 'Mayara'];
+        let currentFaturaData = null;
+        let allFaturaData = [];
+        let currentEditId = null;
+
+	let activeFaturaFilters = {
+	0: '', // Data
+	1: '', // Estabelecimento
+                    2: '', // Produto
+                    3: '', // Categoria
+                    4: '', // Parcela
+                    5: ''  // Comprador
+                    };
+
+        let categorias = [
+            '🍔 Alimentação', '🚗 Transporte', '💊 Saúde', '📚 Educação',
+            '🎮 Lazer', '👕 Vestuário', '💻 Eletrônicos', '🏠 Casa',
+            '🎁 Presente', '💄 Cuidados Pessoais', '📦 Outros'
+        ];
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                loadCompradores();
+                loadCategorias();
+                document.getElementById('dataCompra').valueAsDate = new Date();
+                
+                setTimeout(async () => {
+                    await generateFaturaOptions();
+                    await gerarTabelaDebitos();
+                }, 500);
+            } catch (error) {
+                console.error('Erro na inicialização:', error);
+            }
+        });
+
+        function loadCompradores() {
+            const saved = localStorage.getItem('compradores');
+            if (saved) compradores = JSON.parse(saved);
+            updateCompradoresUI();
+        }
+
+        function saveCompradores() {
+            localStorage.setItem('compradores', JSON.stringify(compradores));
+            updateCompradoresUI();
+        }
+
+        function updateCompradoresUI() {
+            const select = document.getElementById('comprador');
+            const valorAtual = select.value;
+            select.innerHTML = `
+                <option value="">Selecione...</option>
+                ${compradores.map(c => `<option value="${c}">${c}</option>`).join('')}
+                <option value="Ambos">Dividir</option>
+            `;
+            if (valorAtual) select.value = valorAtual;
+        }
+
+        function gerenciarCompradores() {
+            document.getElementById('compradoresModal').style.display = 'flex';
+            atualizarListaCompradores();
+        }
+
+        function fecharModalCompradores() {
+            document.getElementById('compradoresModal').style.display = 'none';
+        }
+
+        function atualizarListaCompradores() {
+            const lista = document.getElementById('listaCompradores');
+            lista.innerHTML = compradores.map((c, i) => `
+                <div class="comprador-item">
+                    <span>${c}</span>
+                    <button class="btn btn-danger btn-small" onclick="removerCompradorPorIndex(${i})">🗑️</button>
+                </div>
+            `).join('');
+        }
+
+        function removerCompradorPorIndex(index) {
+            if (confirm(`Remover "${compradores[index]}"?`)) {
+                compradores.splice(index, 1);
+                saveCompradores();
+                atualizarListaCompradores();
+                showMessage('✅ Comprador removido!');
+            }
+        }
+
+        function adicionarCompradorModal() {
+            const input = document.getElementById('novoCompradorInput');
+            const nome = input.value.trim();
+            
+            if (!nome) {
+                showMessage('⚠️ Digite um nome!', 'error');
+                return;
+            }
+            
+            if (compradores.includes(nome)) {
+                showMessage('⚠️ Este comprador já existe!', 'error');
+                return;
+            }
+            
+            compradores.push(nome);
+            saveCompradores();
+            atualizarListaCompradores();
+            input.value = '';
+            showMessage(`✅ Comprador "${nome}" adicionado!`);
+        }
+
+        function getBadgeClass(comprador) {
+            const nome = comprador.toLowerCase();
+            if (nome === 'paulo') return 'badge-paulo';
+            if (nome === 'mayara') return 'badge-mayara';
+            return 'badge-paulo';
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            if (tabName === 'relatorios') {
+                gerarTabelaDebitos();
+            } else if (tabName === 'faturas') {
+                loadFatura();
+            }
+        }
+
+        function showMessage(message, type = 'success') {
+            const container = document.getElementById('messageContainer');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.textContent = message;
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        function handleCompradorChange() {
+            const comprador = document.getElementById('comprador').value;
+            const splitContainer = document.getElementById('splitContainer');
+            
+            if (comprador === 'Ambos') {
+                splitContainer.style.display = 'block';
+                gerarCheckboxesCompradores();
+            } else {
+                splitContainer.style.display = 'none';
+            }
+        }
+
+        function gerarCheckboxesCompradores() {
+            const container = document.getElementById('compradoresCheckboxes');
+            container.innerHTML = compradores.map((c, index) => `
+                <div class="comprador-checkbox" id="checkbox-${index}">
+                    <input type="checkbox" id="comprador-check-${index}" value="${c}" onchange="toggleCompradorCheckbox(${index})">
+                    <label for="comprador-check-${index}">${c}</label>
+                </div>
+            `).join('');
+        }
+
+        function toggleCompradorCheckbox(index) {
+            const checkbox = document.getElementById(`comprador-check-${index}`);
+            const div = document.getElementById(`checkbox-${index}`);
+            
+            if (checkbox.checked) {
+                div.classList.add('checked');
+            } else {
+                div.classList.remove('checked');
+            }
+            
+            atualizarCamposValores();
+        }
+
+        function atualizarCamposValores() {
+            const compradoresSelecionados = [];
+            compradores.forEach((c, index) => {
+                const checkbox = document.getElementById(`comprador-check-${index}`);
+                if (checkbox && checkbox.checked) {
+                    compradoresSelecionados.push(c);
+                }
+            });
+
+            const container = document.getElementById('valoresDivisao');
+            
+            if (compradoresSelecionados.length === 0) {
+                container.innerHTML = '<p style="color: #a8a8a8; text-align: center;">Selecione compradores</p>';
+                return;
+            }
+
+            container.innerHTML = compradoresSelecionados.map(c => `
+                <div class="valor-item">
+                    <label><span style="font-weight: 600;">${c}</span></label>
+                    <input type="number" id="valor-${c.replace(/\s/g, '_')}" step="0.01" placeholder="0.00" onchange="validateSplit()" oninput="validateSplit()">
+                </div>
+            `).join('');
+        }
+
+        function calcularDivisao() {
+            const compradoresSelecionados = [];
+            compradores.forEach((c, index) => {
+                const checkbox = document.getElementById(`comprador-check-${index}`);
+                if (checkbox && checkbox.checked) {
+                    compradoresSelecionados.push(c);
+                }
+            });
+
+            if (compradoresSelecionados.length === 0) {
+                showMessage('⚠️ Selecione compradores!', 'error');
+                return;
+            }
+
+            const valor = parseFloat(document.getElementById('valor').value) || 0;
+            const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
+            const valorParcela = valor / parcelas;
+            const valorPorPessoa = (valorParcela / compradoresSelecionados.length).toFixed(2);
+
+            compradoresSelecionados.forEach(c => {
+                const input = document.getElementById(`valor-${c.replace(/\s/g, '_')}`);
+                if (input) input.value = valorPorPessoa;
+            });
+
+            validateSplit();
+            showMessage(`✅ R$ ${valorPorPessoa} por pessoa`);
+        }
+
+        function validateSplit() {
+            const valor = parseFloat(document.getElementById('valor').value) || 0;
+            const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
+            const valorParcela = valor / parcelas;
+            
+            const compradoresSelecionados = [];
+            compradores.forEach((c, index) => {
+                const checkbox = document.getElementById(`comprador-check-${index}`);
+                if (checkbox && checkbox.checked) {
+                    compradoresSelecionados.push(c);
+                }
+            });
+
+            if (compradoresSelecionados.length === 0) return true;
+
+            let somaTotal = 0;
+            compradoresSelecionados.forEach(c => {
+                const input = document.getElementById(`valor-${c.replace(/\s/g, '_')}`);
+                if (input && input.value) {
+                    somaTotal += parseFloat(input.value) || 0;
+                }
+            });
+            
+            const errorDiv = document.getElementById('splitError');
+            const successDiv = document.getElementById('splitSuccess');
+            
+            if (Math.abs(somaTotal - valorParcela) > 0.01) {
+                errorDiv.textContent = `❌ Soma R$ ${somaTotal.toFixed(2)} ≠ R$ ${valorParcela.toFixed(2)}`;
+                errorDiv.style.display = 'block';
+                successDiv.style.display = 'none';
+                return false;
+            } else {
+                errorDiv.style.display = 'none';
+                successDiv.textContent = `✅ Correto: R$ ${somaTotal.toFixed(2)}`;
+                successDiv.style.display = 'block';
+                return true;
+            }
+        }
+
+        function calcularFatura(dataCompra) {
+            const data = new Date(dataCompra + 'T12:00:00');
+            const dia = data.getDate();
+            const mes = data.getMonth();
+            const ano = data.getFullYear();
+            
+            let mesReferencia, anoReferencia;
+            
+            if (dia >= 4) {
+                mesReferencia = (mes + 1) % 12;
+                anoReferencia = mesReferencia === 0 ? ano + 1 : ano;
+            } else {
+                mesReferencia = mes;
+                anoReferencia = ano;
+            }
+            
+            const dataPagamento = new Date(anoReferencia, mesReferencia, 5);
+            
+            const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                          'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            
+            return {
+                referencia: `${meses[mesReferencia]}/${anoReferencia}`,
+                pagamento: dataPagamento.toLocaleDateString('pt-BR'),
+                mesNum: mesReferencia,
+                ano: anoReferencia,
+                dataPagamentoObj: dataPagamento
+            };
+        }
+
+        function isFaturaAberta(faturaPagamento) {
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            
+            const [dia, mes, ano] = faturaPagamento.split('/');
+            const dataPag = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+            dataPag.setHours(0, 0, 0, 0);
+            
+            return dataPag > hoje;
+        }
+
+        document.getElementById('compraForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const comprador = document.getElementById('comprador').value;
+            
+            if (comprador === 'Ambos') {
+                const compradoresSelecionados = [];
+                compradores.forEach((c, index) => {
+                    const checkbox = document.getElementById(`comprador-check-${index}`);
+                    if (checkbox && checkbox.checked) {
+                        compradoresSelecionados.push(c);
+                    }
+                });
+
+                if (compradoresSelecionados.length === 0) {
+                    showMessage('❌ Selecione compradores!', 'error');
+                    return;
+                }
+
+                if (!validateSplit()) {
+                    showMessage('❌ Corrija os valores!', 'error');
+                    return;
+                }
+            }
+
+            const dataCompra = document.getElementById('dataCompra').value;
+            const valorTotal = parseFloat(document.getElementById('valor').value);
+            const qtdParcelas = parseInt(document.getElementById('parcelas').value);
+            
+            const compraBase = {
+                data_compra: dataCompra,
+                valor_total: valorTotal,
+                quantidade_parcelas: qtdParcelas,
+                comprador: comprador,
+                estabelecimento: document.getElementById('estabelecimento').value,
+                produto: document.getElementById('produto').value,
+                categoria: document.getElementById('categoria').value,
+                observacao: document.getElementById('observacao').value,
+                cartao: 'Nubank'
+            };
+
+            try {
+                const parcelas = [];
+                const dataInicial = new Date(dataCompra + 'T12:00:00');
+                
+                for (let i = 0; i < qtdParcelas; i++) {
+                    const dataParcela = new Date(dataInicial);
+                    dataParcela.setMonth(dataParcela.getMonth() + i);
+                    const dataParcelaStr = dataParcela.toISOString().split('T')[0];
+                    
+                    const fatura = calcularFatura(dataParcelaStr);
+                    
+                    if (comprador === 'Ambos') {
+                        const compradoresSelecionados = [];
+                        compradores.forEach((c, index) => {
+                            const checkbox = document.getElementById(`comprador-check-${index}`);
+                            if (checkbox && checkbox.checked) {
+                                const input = document.getElementById(`valor-${c.replace(/\s/g, '_')}`);
+                                const valor = parseFloat(input.value) || 0;
+                                compradoresSelecionados.push({ nome: c, valor: valor });
+                            }
+                        });
+                        
+                        compradoresSelecionados.forEach(comp => {
+                            parcelas.push({
+                                ...compraBase,
+                                data_parcela: dataParcelaStr,
+                                numero_parcela: i + 1,
+                                valor_parcela: comp.valor,
+                                comprador_parcela: comp.nome,
+                                fatura_referencia: fatura.referencia,
+                                fatura_pagamento: fatura.pagamento
+                            });
+                        });
+                    } else {
+                        parcelas.push({
+                            ...compraBase,
+                            data_parcela: dataParcelaStr,
+                            numero_parcela: i + 1,
+                            valor_parcela: valorTotal / qtdParcelas,
+                            comprador_parcela: comprador,
+                            fatura_referencia: fatura.referencia,
+                            fatura_pagamento: fatura.pagamento
+                        });
+                    }
+                }
+
+                const { data, error } = await supabase
+                    .from('cartao_credito')
+                    .insert(parcelas);
+
+                if (error) throw error;
+
+                showMessage('✅ Cadastrado!');
+                document.getElementById('compraForm').reset();
+                document.getElementById('dataCompra').valueAsDate = new Date();
+                document.getElementById('cartao').value = 'Nubank';
+                document.getElementById('splitContainer').style.display = 'none';
+                
+                generateFaturaOptions();
+                gerarTabelaDebitos();
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                showMessage('❌ Erro ao cadastrar', 'error');
+            }
+        });
+
+async function generateFaturaOptions() {
+    try {
+        const statusFilter = document.getElementById('statusFilter').value;
+        const faturaSelect = document.getElementById('faturaSelect');
+        const valorAtualmenteSelcionado = faturaSelect.value;
+        
+        const { data, error } = await supabase
+            .from('cartao_credito')
+            .select('fatura_referencia, fatura_pagamento')
+            .order('fatura_pagamento', { ascending: false });
+
+        if (error) {
+            faturaSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+            return;
+        }
+
+        if (!data || data.length === 0) {
+            faturaSelect.innerHTML = '<option value="">Nenhuma fatura</option>';
+            return;
+        }
+
+        // CORREÇÃO: Agrupar por referência única
+        const faturasMap = new Map();
+        data.forEach(d => {
+            if (!faturasMap.has(d.fatura_referencia)) {
+                faturasMap.set(d.fatura_referencia, d.fatura_pagamento);
+            }
+        });
+        
+        // Converter Map para array
+        let faturas = Array.from(faturasMap.entries()).map(([ref, pag]) => `${ref}|${pag}`);
+        
+        if (statusFilter === 'abertas') {
+            faturas = faturas.filter(f => {
+                const [ref, pag] = f.split('|');
+                return isFaturaAberta(pag);
+            });
+        } else if (statusFilter === 'pagas') {
+            faturas = faturas.filter(f => {
+                const [ref, pag] = f.split('|');
+                return !isFaturaAberta(pag);
+            });
+        }
+        
+        faturas.sort((a, b) => {
+            const parseFatura = (str) => {
+                const [ref, pag] = str.split('|');
+                const [mesNome, ano] = ref.split('/');
+                const meses = {
+                    'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3,
+                    'maio': 4, 'junho': 5, 'julho': 6, 'agosto': 7,
+                    'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+                };
+                const mesNum = meses[mesNome.toLowerCase()];
+                return new Date(parseInt(ano), mesNum, 1);
+            };
+            
+            const dataA = parseFatura(a);
+            const dataB = parseFatura(b);
+            
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            
+            if ((dataA >= hoje && dataB >= hoje) || (dataA < hoje && dataB < hoje)) {
+                return dataA - dataB;
+            }
+            
+            return dataA >= hoje ? -1 : 1;
+        });
+        
+        if (faturas.length === 0) {
+            faturaSelect.innerHTML = '<option value="">Nenhuma fatura neste filtro</option>';
+        } else {
+            faturaSelect.innerHTML = '<option value="">Selecione...</option>' +
+                faturas.map(f => {
+                    const [ref, pag] = f.split('|');
+                    const status = isFaturaAberta(pag) ? '🟡' : '🟢';
+                    return `<option value="${ref}">${status} ${ref}</option>`;
+                }).join('');
+            
+            if (valorAtualmenteSelcionado && faturas.some(f => f.split('|')[0] === valorAtualmenteSelcionado)) {
+                faturaSelect.value = valorAtualmenteSelcionado;
+            }
+        }
+        
+    } catch (error) {
+        console.error('Erro:', error);
+    }
+}
+
+        async function loadFatura() {
+            const faturaRef = document.getElementById('faturaSelect').value;
+            
+            if (!faturaRef) {
+                document.getElementById('faturaTableBody').innerHTML = 
+                    '<tr><td colspan="8" style="text-align: center; padding: 40px;">Selecione uma fatura</td></tr>';
+                document.getElementById('btnVisualizarFatura').disabled = true;
+                document.getElementById('btnBaixarFatura').disabled = true;
+                
+                // Limpar cards de estatísticas
+                document.getElementById('faturaStats').innerHTML = '';
+                return;
+            }
+            
+            try {
+                const { data, error } = await supabase
+                    .from('cartao_credito')
+                    .select('*')
+                    .eq('fatura_referencia', faturaRef)
+                    .order('data_parcela', { ascending: true });
+                
+                if (error) throw error;
+                
+                allFaturaData = data;
+                currentFaturaData = data;
+                
+                // Calcular totais
+                const total = data.reduce((sum, item) => sum + item.valor_parcela, 0);
+                
+                const totaisPorComprador = {};
+                data.forEach(item => {
+                    if (!totaisPorComprador[item.comprador_parcela]) {
+                        totaisPorComprador[item.comprador_parcela] = 0;
+                    }
+                    totaisPorComprador[item.comprador_parcela] += item.valor_parcela;
+                });
+                
+                // Gerar cards dinamicamente
+                const statsContainer = document.getElementById('faturaStats');
+                let cardsHTML = `
+                    <div class="stat-card">
+                        <div class="stat-label">💰 Total</div>
+                        <div class="stat-value">R$ ${total.toFixed(2)}</div>
+                    </div>
+                `;
+                
+                // Adicionar card para cada comprador
+                Object.keys(totaisPorComprador).sort().forEach(comprador => {
+                    cardsHTML += `
+                        <div class="stat-card">
+                            <div class="stat-label">👤 ${comprador}</div>
+                            <div class="stat-value">R$ ${totaisPorComprador[comprador].toFixed(2)}</div>
+                        </div>
+                    `;
+                });
+                
+                // Adicionar card de quantidade
+                cardsHTML += `
+                    <div class="stat-card">
+                        <div class="stat-label">📊 Compras</div>
+                        <div class="stat-value">${data.length}</div>
+                    </div>
+                `;
+                
+                statsContainer.innerHTML = cardsHTML;
+                
+                displayFaturaTable(data);
+                
+                document.getElementById('btnVisualizarFatura').disabled = false;
+                document.getElementById('btnBaixarFatura').disabled = false;
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                showMessage('❌ Erro ao carregar', 'error');
+            }
+        }
+
+        function displayFaturaTable(data) {
+            const tbody = document.getElementById('faturaTableBody');
+            tbody.innerHTML = data.map(item => `
+                <tr data-id="${item.id}">
+                    <td>${new Date(item.data_parcela + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                    <td>${item.estabelecimento}</td>
+                    <td>${item.produto}</td>
+                    <td>${item.categoria}</td>
+                    <td>${item.numero_parcela}/${item.quantidade_parcelas}</td>
+                    <td><span class="badge ${getBadgeClass(item.comprador_parcela)}">${item.comprador_parcela}</span></td>
+                    <td class="valor-cell">R$ ${item.valor_parcela.toFixed(2)}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-warning btn-small" onclick='editarLancamento(${JSON.stringify(item)})' title="Editar">✏️</button>
+                            <button class="btn btn-danger btn-small" onclick="excluirLancamento(${item.id})" title="Excluir">🗑️</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterFaturaTable(columnIndex, filterValue) {
+            activeFaturaFilters[columnIndex] = filterValue;
+            
+            const filtered = allFaturaData.filter(item => {
+                const values = [
+                    new Date(item.data_parcela + 'T12:00:00').toLocaleDateString('pt-BR'),
+                    item.estabelecimento,
+                    item.produto,
+                    item.categoria,
+                    `${item.numero_parcela}/${item.quantidade_parcelas}`,
+                    item.comprador_parcela
+                ];
+                
+                for (let index in activeFaturaFilters) {
+                    const filter = activeFaturaFilters[index];
+                    
+                    if (!filter) continue;
+                    
+                    if (parseInt(index) === 4) {
+                        if (values[index].toLowerCase() !== filter.toLowerCase()) {
+                            return false;
+                        }
+                    } else {
+                        if (!values[index].toLowerCase().includes(filter.toLowerCase())) {
+                            return false;
+                        }
+                    }
+                }
+                
+                return true;
+            });
+            
+            displayFaturaTable(filtered);
+            updateFaturaStats(filtered);
+        }
+
+        function updateFaturaStats(data) {
+            const total = data.reduce((sum, item) => sum + item.valor_parcela, 0);
+            
+            const totaisPorComprador = {};
+            data.forEach(item => {
+                if (!totaisPorComprador[item.comprador_parcela]) {
+                    totaisPorComprador[item.comprador_parcela] = 0;
+                }
+                totaisPorComprador[item.comprador_parcela] += item.valor_parcela;
+            });
+            
+            // Gerar cards dinamicamente
+            const statsContainer = document.getElementById('faturaStats');
+            let cardsHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">💰 Total</div>
+                    <div class="stat-value">R$ ${total.toFixed(2)}</div>
+                </div>
+            `;
+            
+            Object.keys(totaisPorComprador).sort().forEach(comprador => {
+                cardsHTML += `
+                    <div class="stat-card">
+                        <div class="stat-label">👤 ${comprador}</div>
+                        <div class="stat-value">R$ ${totaisPorComprador[comprador].toFixed(2)}</div>
+                    </div>
+                `;
+            });
+            
+            cardsHTML += `
+                <div class="stat-card">
+                    <div class="stat-label">📊 Compras</div>
+                    <div class="stat-value">${data.length}</div>
+                </div>
+            `;
+            
+            statsContainer.innerHTML = cardsHTML;
+        }
+
+        function editarLancamento(item) {
+            currentEditId = item.id;
+            
+            document.getElementById('editDataParcela').value = item.data_parcela;
+            document.getElementById('editValor').value = item.valor_parcela;
+            document.getElementById('editEstabelecimento').value = item.estabelecimento;
+            document.getElementById('editProduto').value = item.produto;
+            document.getElementById('editObservacao').value = item.observacao || '';
+            
+            const selectCategoria = document.getElementById('editCategoria');
+            selectCategoria.innerHTML = categorias.map(cat => {
+                const nome = cat.replace(/^[^\s]+\s/, '');
+                return `<option value="${nome}">${cat}</option>`;
+            }).join('');
+            selectCategoria.value = item.categoria;
+            
+            const selectComprador = document.getElementById('editComprador');
+            selectComprador.innerHTML = compradores.map(c => `<option value="${c}">${c}</option>`).join('');
+            selectComprador.value = item.comprador_parcela;
+            
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function fecharModalEdicao() {
+            document.getElementById('editModal').style.display = 'none';
+            currentEditId = null;
+        }
+
+        document.getElementById('editForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!currentEditId) return;
+            
+            try {
+                const { error } = await supabase
+                    .from('cartao_credito')
+                    .update({
+                        data_parcela: document.getElementById('editDataParcela').value,
+                        valor_parcela: parseFloat(document.getElementById('editValor').value),
+                        estabelecimento: document.getElementById('editEstabelecimento').value,
+                        produto: document.getElementById('editProduto').value,
+                        categoria: document.getElementById('editCategoria').value,
+                        comprador_parcela: document.getElementById('editComprador').value,
+                        observacao: document.getElementById('editObservacao').value
+                    })
+                    .eq('id', currentEditId);
+                
+                if (error) throw error;
+                
+                showMessage('✅ Atualizado!');
+                fecharModalEdicao();
+                loadFatura();
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                showMessage('❌ Erro ao atualizar', 'error');
+            }
+        });
+
+        async function excluirLancamento(id) {
+            if (!confirm('⚠️ Excluir este lançamento?')) return;
+            
+            try {
+                const { error } = await supabase
+                    .from('cartao_credito')
+                    .delete()
+                    .eq('id', id);
+                
+                if (error) throw error;
+                
+                showMessage('✅ Excluído!');
+                loadFatura();
+                generateFaturaOptions();
+                gerarTabelaDebitos();
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                showMessage('❌ Erro ao excluir', 'error');
+            }
+        }
+
+        async function gerarTabelaDebitos() {
+            try {
+                const { data, error } = await supabase
+                    .from('cartao_credito')
+                    .select('*')
+                    .order('data_parcela', { ascending: false });
+                
+                if (error) throw error;
+                
+                const debitosPorMes = {};
+                
+                data.forEach(item => {
+                    const mes = item.fatura_referencia;
+                    if (!debitosPorMes[mes]) {
+                        debitosPorMes[mes] = {
+                            compradores: {},
+                            dataPagamento: item.fatura_pagamento,
+                            totalMes: 0
+                        };
+                    }
+                    if (!debitosPorMes[mes].compradores[item.comprador_parcela]) {
+                        debitosPorMes[mes].compradores[item.comprador_parcela] = 0;
+                    }
+                    debitosPorMes[mes].compradores[item.comprador_parcela] += item.valor_parcela;
+                    debitosPorMes[mes].totalMes += item.valor_parcela;
+                });
+                
+                const tbody = document.getElementById('tabelaDebitos');
+                let html = '';
+                
+                const mesesOrdenados = Object.keys(debitosPorMes).sort((a, b) => {
+                    const parseFatura = (mes) => {
+                        const [mesNome, ano] = mes.split('/');
+                        const meses = {
+                            'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3,
+                            'maio': 4, 'junho': 5, 'julho': 6, 'agosto': 7,
+                            'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+                        };
+                        const mesNum = meses[mesNome.toLowerCase()];
+                        return new Date(parseInt(ano), mesNum, 1);
+                    };
+                    
+                    const dataA = parseFatura(a);
+                    const dataB = parseFatura(b);
+                    
+                    const hoje = new Date();
+                    hoje.setHours(0, 0, 0, 0);
+                    
+                    if ((dataA >= hoje && dataB >= hoje) || (dataA < hoje && dataB < hoje)) {
+                        return dataA - dataB;
+                    }
+                    
+                    return dataA >= hoje ? -1 : 1;
+                });
+                
+                mesesOrdenados.forEach(mes => {
+                    const info = debitosPorMes[mes];
+                    const aberta = isFaturaAberta(info.dataPagamento);
+                    const statusBadge = aberta ? 
+                        '<span class="badge-aberta">Aberta</span>' : 
+                        '<span class="badge-paga">Paga</span>';
+                    
+                    // Adicionar linha para cada comprador
+                    Object.keys(info.compradores).sort().forEach(comp => {
+                        const valor = info.compradores[comp];
+                        
+                        html += `
+                            <tr>
+                                <td><strong>${comp}</strong></td>
+                                <td class="mes-cell">${mes}</td>
+                                <td class="valor-cell">R$ ${valor.toFixed(2)}</td>
+                                <td>${statusBadge}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    // Adicionar linha de TOTAL do mês
+                    html += `
+                        <tr class="total-mes-row">
+                            <td colspan="2"><strong>🔹 TOTAL ${mes}</strong></td>
+                            <td class="valor-cell"><strong>R$ ${info.totalMes.toFixed(2)}</strong></td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.innerHTML = html || '<tr><td colspan="4" style="text-align: center;">Nenhum débito</td></tr>';
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                document.getElementById('tabelaDebitos').innerHTML = '<tr><td colspan="4" style="text-align: center;">Erro ao carregar</td></tr>';
+            }
+        }
+
+        function loadCategorias() {
+            const saved = localStorage.getItem('categorias');
+            if (saved) categorias = JSON.parse(saved);
+            updateCategoriasUI();
+        }
+
+        function saveCategorias() {
+            localStorage.setItem('categorias', JSON.stringify(categorias));
+            updateCategoriasUI();
+        }
+
+        function updateCategoriasUI() {
+            const select = document.getElementById('categoria');
+            if (select) {
+                const valorAtual = select.value;
+                select.innerHTML = '<option value="">Selecione...</option>' +
+                    categorias.map(cat => {
+                        const nome = cat.replace(/^[^\s]+\s/, '');
+                        return `<option value="${nome}">${cat}</option>`;
+                    }).join('');
+                if (valorAtual) select.value = valorAtual;
+            }
+        }
+
+        function gerenciarCategorias() {
+            document.getElementById('categoriasModal').style.display = 'flex';
+            atualizarListaCategorias();
+        }
+
+        function fecharModalCategorias() {
+            document.getElementById('categoriasModal').style.display = 'none';
+        }
+
+        function atualizarListaCategorias() {
+            const lista = document.getElementById('listaCategorias');
+            lista.innerHTML = categorias.map((c, i) => `
+                <div class="comprador-item">
+                    <span>${c}</span>
+                    <button class="btn btn-danger btn-small" onclick="removerCategoriaPorIndex(${i})">🗑️</button>
+                </div>
+            `).join('');
+        }
+
+        function removerCategoriaPorIndex(index) {
+            if (confirm(`Remover "${categorias[index]}"?`)) {
+                categorias.splice(index, 1);
+                saveCategorias();
+                atualizarListaCategorias();
+                showMessage('✅ Removida!');
+            }
+        }
+
+        function adicionarCategoriaModal() {
+            const input = document.getElementById('novaCategoriaInput');
+            const nome = input.value.trim();
+            
+            if (!nome) {
+                showMessage('⚠️ Digite um nome!', 'error');
+                return;
+            }
+            
+            const nomesSemEmoji = categorias.map(c => c.replace(/^[^\s]+\s/, ''));
+            if (nomesSemEmoji.includes(nome)) {
+                showMessage('⚠️ Já existe!', 'error');
+                return;
+            }
+            
+            categorias.push(`📦 ${nome}`);
+            saveCategorias();
+            atualizarListaCategorias();
+            input.value = '';
+            showMessage(`✅ Adicionada!`);
+        }
+
+        function visualizarFaturaPDF() {
+            gerarFaturaPDF('visualizar');
+        }
+
+        function baixarFaturaPDF() {
+            gerarFaturaPDF('download');
+        }
+
+        function gerarFaturaPDF(acao = 'download') {
+            if (!allFaturaData || !allFaturaData.length) {
+                showMessage('⚠️ Nenhuma fatura!', 'error');
+                return;
+            }
+
+            // Aplicar os mesmos filtros que estão ativos na tabela
+            const dadosFiltrados = allFaturaData.filter(item => {
+                const values = [
+                    new Date(item.data_parcela + 'T12:00:00').toLocaleDateString('pt-BR'),
+                    item.estabelecimento,
+                    item.produto,
+                    item.categoria,
+                    `${item.numero_parcela}/${item.quantidade_parcelas}`,
+                    item.comprador_parcela
+                ];
+                
+                for (let index in activeFaturaFilters) {
+                    const filter = activeFaturaFilters[index];
+                    
+                    if (!filter) continue;
+                    
+                    if (parseInt(index) === 4) {
+                        if (values[index].toLowerCase() !== filter.toLowerCase()) {
+                            return false;
+                        }
+                    } else {
+                        if (!values[index].toLowerCase().includes(filter.toLowerCase())) {
+                            return false;
+                        }
+                    }
+                }
+                
+                return true;
+            });
+
+            if (dadosFiltrados.length === 0) {
+                showMessage('⚠️ Nenhum dado para exportar com os filtros aplicados!', 'error');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            const faturaRef = allFaturaData[0].fatura_referencia;
+
+            doc.setFontSize(20);
+            doc.setTextColor(102, 126, 234);
+            doc.text('Fatura do Cartão', 105, 20, { align: 'center' });
+
+            doc.setFontSize(12);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Fatura: ${faturaRef}`, 20, 35);
+
+            // Calcular totais com TODOS os dados (sem filtro)
+            const totalGeral = allFaturaData.reduce((sum, item) => sum + item.valor_parcela, 0);
+            const totalPorCompradorGeral = {};
+            allFaturaData.forEach(item => {
+                totalPorCompradorGeral[item.comprador_parcela] = (totalPorCompradorGeral[item.comprador_parcela] || 0) + item.valor_parcela;
+            });
+
+            doc.setFontSize(14);
+            doc.setTextColor(102, 126, 234);
+            doc.text('Resumo (Total da Fatura)', 20, 48);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            let yPos = 55;
+            doc.text(`Total: R$ ${totalGeral.toFixed(2)}`, 20, yPos);
+            yPos += 7;
+            
+            Object.keys(totalPorCompradorGeral).sort().forEach(comp => {
+                doc.text(`${comp}: R$ ${totalPorCompradorGeral[comp].toFixed(2)}`, 20, yPos);
+                yPos += 7;
+            });
+
+            // Verificar se há filtros ativos
+            const filtrosAtivos = Object.values(activeFaturaFilters).some(f => f !== '');
+            
+            if (filtrosAtivos) {
+                yPos += 3;
+                doc.setFontSize(10);
+                doc.setTextColor(255, 107, 107);
+                doc.text('Tabela abaixo mostra apenas dados filtrados', 20, yPos);
+                yPos += 7;
+                
+                // Mostrar totais dos dados filtrados
+                const totalFiltrado = dadosFiltrados.reduce((sum, item) => sum + item.valor_parcela, 0);
+                doc.setTextColor(0, 0, 0);
+                doc.text(`Total Filtrado: R$ ${totalFiltrado.toFixed(2)} (${dadosFiltrados.length} itens)`, 20, yPos);
+                yPos += 5;
+            }
+
+            // Usar dadosFiltrados para a tabela
+            const tableData = dadosFiltrados.map(item => [
+                new Date(item.data_parcela + 'T12:00:00').toLocaleDateString('pt-BR'),
+                item.estabelecimento,
+                item.produto,
+                item.categoria,
+                `${item.numero_parcela}/${item.quantidade_parcelas}`,
+                item.comprador_parcela,
+                `R$ ${item.valor_parcela.toFixed(2)}`
+            ]);
+
+            doc.autoTable({
+                startY: yPos + 5,
+                head: [['Data', 'Estabelecimento', 'Produto', 'Categoria', 'Parcela', 'Comprador', 'Valor']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { fillColor: [102, 126, 234], textColor: 255 },
+                styles: { fontSize: 8 },
+                columnStyles: {
+                    6: { halign: 'right' }
+                }
+            });
+
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(128, 128, 128);
+                doc.text(`${new Date().toLocaleDateString('pt-BR')} - Pág ${i}/${pageCount}`, 
+                    105, doc.internal.pageSize.height - 10, { align: 'center' });
+            }
+
+            if (acao === 'visualizar') {
+                window.open(doc.output('bloburl'), '_blank');
+            } else {
+                const nomeArquivo = filtrosAtivos ? 
+                    `Fatura_${faturaRef.replace('/', '_')}_Filtrado.pdf` : 
+                    `Fatura_${faturaRef.replace('/', '_')}.pdf`;
+                doc.save(nomeArquivo);
+            }
+        }
+    </script>
+</body>
+</html>
